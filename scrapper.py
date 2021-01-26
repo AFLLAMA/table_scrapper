@@ -33,7 +33,6 @@ t_TABLEC = r'</table>'
 
 def t_ANYTAGO(t):
     r'<\s*[a-zA-Z]+.*?>'
-    # print('LOOK: ', t.value)
     if re.match(t_TABLEO, t.value):
         t.type = 'TABLEO'
         return t
@@ -86,8 +85,6 @@ class Node:
 
 
     def __repr__(self):
-        # if self.type == 'word':
-            # return self.parts[0]
         return self.type + ":\n\t" + self.parts_str().replace("\n", "\n\t")
 
 
@@ -106,7 +103,7 @@ def p_table(p):
              | table TABLEO tablebody TABLEC
              | word table word'''
     if len(p) == 1:
-        p[0] = Node('table',[])
+        p[0] = Node('tables',[])
     elif len(p) == 3:
         if p[1] == 'table':
             p[0] = p[1]
@@ -116,7 +113,7 @@ def p_table(p):
         p[0] = p[2]
     else:
         if p[1] == None:
-            p[1] == Node('table',[])
+            p[1] == Node('tables',[])
         p[0] = p[1].add_parts([p[3]])
     # print(p[0])
 
@@ -126,19 +123,21 @@ def p_tablebody(p):
                  | tablebody TRO bodycolumns TRC'''
     if len(p) > 1:
         if p[1] == None:
-            p[1] = Node('body', [])
+            p[1] = Node('table', [])
         p[0] = p[1].add_parts([p[3]])
     else:
-        p[0] = Node('body', [])
+        p[0] = Node('table', [])
     
     
 def p_bodycolumns(p):
     '''bodycolumns : 
                    | bodycolumns TDO word TDC
-                   | bodycolumns THO word THC'''
+                   | bodycolumns THO word THC
+                   | bodycolumns TDO table TDC
+                   | bodycolumns THO table THC'''
     if len(p) > 1:
         if p[1] == None:
-            p[1] = Node('content',[])
+            p[1] = Node('row',[])
         p[0] = p[1].add_parts([p[3]])
 
  
@@ -153,8 +152,16 @@ def p_word(p):
         p[0] = p[1]
 
 
- # DATA
+def p_error(p):
+     if p:
+          print("Syntax error at token", p.type)
+          # Just discard the token and tell the parser it's okay.
+          parser.errok()
+     else:
+          print("Syntax error at EOF")
+          
 
+ # DATA
 data = '''
 <table class="infobox vevent" style="width:22em">
     <tbody>
@@ -195,17 +202,30 @@ data = '''
     <td>dfl <a>John</a><a>John</a><a>John</a></td>
     <td>Doe</td>
     <td>80</td>
-   
+    <td>
+        <table>
+            <tr>
+                <th class = "dsfgs" >
+                    First name
+                </th>
+                <th>Lastname</th> 
+                <th>Age</th>
+            </tr>
+        </table>
+    </td>
   </tr>
 </table>
 '''
 
+print('Normalized data:')
 data = ' '.join(data.split())
 print(data)
 
+print('List of tokens:')
 lexer.input(data)
 for l in lexer:
     print(l)
 
+print('Tree of tables:')
 yacc.yacc()
-print(yacc.parse(data).__repr__)
+print(yacc.parse(data))

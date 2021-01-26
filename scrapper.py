@@ -2,8 +2,9 @@ from ply import lex
 import ply.yacc as yacc
 import string
 import re
+import csv
 
-# LEX
+ # LEX
 tokens = (
     'TABLEO',
     'TRO',
@@ -27,7 +28,7 @@ t_THO = r'<th.*?>'
 t_TRC = r'</tr>'
 t_THC = r'</th>'
 t_TDO = r'<td.*?>'
-t_TDC = r'</td>'    
+t_TDC = r'</td>'
 t_TABLEC = r'</table>'
 
 
@@ -46,8 +47,8 @@ def t_ANYTAGO(t):
         t.type = 'TDO'
         return t
     return None
-    
-    
+
+
 def t_ANYTAGC(t):
     r'</\s*[a-zA-Z]+.*?>'
     if re.match(t_TABLEC, t.value):
@@ -63,7 +64,7 @@ def t_ANYTAGC(t):
         t.type = 'TDC'
         return t
     return None
-        
+
 
 t_WORD = r' \s*[a-zA-Z0-9().,\-:;@#$%^&*\[\]\"\'+–/\/®°⁰!?{}|`~ ]+'
 
@@ -71,10 +72,10 @@ t_WORD = r' \s*[a-zA-Z0-9().,\-:;@#$%^&*\[\]\"\'+–/\/®°⁰!?{}|`~ ]+'
 def t_error( t ):
   print("Invalid Token:",t.value[0])
   t.lexer.skip( 1 )
-    
-    
+
+
 lexer = lex.lex()
- 
+
  # YACC 
 class Node:
     def parts_str(self):
@@ -96,8 +97,19 @@ class Node:
     def __init__(self, type, parts):
         self.type = type
         self.parts = parts
-   
-   
+
+
+    def to_list(self):
+        tables = []
+        if len(self.parts) > 0:
+            for part in self.parts:
+                if type(part) is Node:
+                    tables.append(part.to_list())
+                else:
+                    tables.append(part)        
+        return tables
+
+
 def p_table(p):
     '''table :
              | table TABLEO tablebody TABLEC
@@ -115,7 +127,6 @@ def p_table(p):
         if p[1] == None:
             p[1] == Node('tables',[])
         p[0] = p[1].add_parts([p[3]])
-    # print(p[0])
 
 
 def p_tablebody(p):
@@ -127,8 +138,8 @@ def p_tablebody(p):
         p[0] = p[1].add_parts([p[3]])
     else:
         p[0] = Node('table', [])
-    
-    
+
+
 def p_bodycolumns(p):
     '''bodycolumns : 
                    | bodycolumns TDO word TDC
@@ -140,7 +151,7 @@ def p_bodycolumns(p):
             p[1] = Node('row',[])
         p[0] = p[1].add_parts([p[3]])
 
- 
+
 def p_word(p):
     '''word : 
             | word WORD'''
@@ -159,7 +170,20 @@ def p_error(p):
           parser.errok()
      else:
           print("Syntax error at EOF")
-          
+
+
+ # Write table to file
+def save_to_file(data, filename):
+    with open(filename, 'w') as myfile:
+        wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+        for row in data:
+            line = []            
+            for ro in row:
+                if type(ro) is list and len(ro)>0:
+                    save_to_file(ro[0], filename + '1')
+                    continue
+                line.append(ro)
+            wr.writerow(line)
 
  # DATA
 data = '''
@@ -182,22 +206,15 @@ data = '''
 <wlef></wlef>
 <table style="width:100%">
   <tr>
-    <th class = "dsfgs" >
-        First name
-    </th>
-    <th>Lastname</th> 
-    <th>Age</th>
-  </tr>
-  <tr>
-    <td> ;sodhbjfn (&^*$&#Jill</td>
+    <td>Jill</td>
     <td>Smith</td>
     <td>50</td>
   </tr>
   <tr>
-    <th>Eve</th>
-    <th>Jackson</th>
-    <th>94</th>
-  </tr>
+    <td>Eve</td>
+    <td>Jackson</td>
+    <td>94</td>
+  </tr>  
   <tr>
     <td>dfl <a>John</a><a>John</a><a>John</a></td>
     <td>Doe</td>
@@ -217,15 +234,31 @@ data = '''
 </table>
 '''
 
-print('Normalized data:')
+ # RUN
+ 
+ # Reduce all consecutive spaces in data to 1
+print('\nNormalized data:\n')
 data = ' '.join(data.split())
 print(data)
 
-print('List of tokens:')
+ # Display all tokens in order as they appear
+print('\nList of tokens:\n')
 lexer.input(data)
 for l in lexer:
     print(l)
 
-print('Tree of tables:')
+print('\nTree of tables:\n')
 yacc.yacc()
-print(yacc.parse(data))
+tables_tree = yacc.parse(data)
+print(tables_tree)
+
+ # Convert tree to list
+tables_tree_list = tables_tree.to_list()
+
+ # Write all tables to separate files
+print('\nTables as lists:\n')
+count=0
+for part in tables_tree_list:
+    print(part,'\n\n')
+    save_to_file(part,'table' + str(count))
+    count += 1
